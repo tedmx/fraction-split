@@ -1,132 +1,414 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8"/>
-    <title>Canvas tutorial</title>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Fraction Split</title>
     <style type="text/css">
-      canvas { 
-        border: 1px solid black; 
+    canvas {
+        border: 1px solid black;
         transform-disabled: rotate3d(1, 1, .5, -22deg);
-      }
-       .canvasContainer     {
-          perspective-origin: 50% 50%;
-          perspective: 300px;
-          display: inline-block;
-      }
+    }
+    
+    .canvasContainer {
+        perspective-origin: 50% 50%;
+        perspective: 300px;
+        display: inline-block;
+    }
+    
+    .pseudoConsole {
+        font-size: 20px;
+        display: inline-block;
+        width: 100px;
+        position: absolute;
+        right: 0%;
+        top: 0px;
+    }
+    
+    .messageHolder {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        text-align: center;
+        top: 0;
+        z-index: 1;
+    }
+    
+    .messageHolder:before {
+        display: inline-block;
+        height: 100%;
+        content: '';
+        vertical-align: middle;
+    }
+    
+    .message {
+        font: 21px Tahoma, sans-serif;
+        display: inline-block;
+        vertical-align: middle;
+        color: #E3AD00;
+        background-color: rgba(255, 255, 255, 0.75);
+    }
+    .sidepane {
+        display: inline-block;
+        vertical-align: top;
+        font: 21px Tahoma, sans-serif;
+        width: 400px;
+        margin-left: 30px;
+    }
+    .button{
+      display: inline-block;
+      background: #E3E3E3;
+      font-size: 13px;
+      padding: 10px;
+      border: 1px #000 solid;
+      cursor: pointer;
+    }
+    .button+.button{
+        margin-left: 30px;
+    }
+    .button:hover{
+      background: white;
+
+    }
+    .button.experimental:hover {
+      background: repeating-linear-gradient( 45deg, #FFF, #FFF 10px, #FFEF7A 10px, #FFEF7A 20px );
+    }
     </style>
-  </head>
-  <body>
+</head>
 
-    <div class="canvasContainer"></div>
-   
-
+<body>
+    <div class='pseudoConsole'></div>
+    <div class="canvasContainer"><div class="messageHolder"><div class='message'></div></div></div><div class='sidepane'>Hello, this is a game based on gravity. Move your mouse pointer inside the browser or tilt your mobile device to manipulate the world.<br/><br/>Just smash <span style='color:#4ECDC4'>your swarm</span> into huge <span style='color:#C44D58'>triangles</span> relentlessly and avoid <span style='color:#C44D58'>deadly rectangles</span>.<br/><br/><div class='button' onclick='newSampleLevel()'>New sample level</div><div class='button experimental' onclick='startLevelAnew(true)'>New random level</div></div>
     <script src="matter.min.js"></script>
     <script type="text/javascript">
 
-        var canvasContainer =    document.getElementsByClassName("canvasContainer")[0];     
+    var canvasContainer = document.getElementsByClassName("canvasContainer")[0];
+    var pseudoConsole = document.getElementsByClassName("pseudoConsole")[0];
 
-        function handleOrientation(event) {
-          var x = event.beta;  // In degree in the range [-180,180]
-          var y = event.gamma; // In degree
+    window.addEventListener('deviceorientation', handleOrientation);
+    document.body.addEventListener("mousemove", mouseListener);
 
-          engine.world.gravity.x = event.beta/180*gravityModifier;
-          engine.world.gravity.y = event.gamma/180*gravityModifier;
-        }
+    var gravityModifier = 1.3;
 
-        window.addEventListener('deviceorientation', handleOrientation);
+    var blueColor = '#4ECDC4';
+    var redColor = '#C44D58';
 
-        //
-
-        var gravityModifier = 1.3;
-
-        function mouseListener(event){
-        engine.world.gravity.y = (event.clientY/document.body.offsetHeight-0.5)*gravityModifier;
-        engine.world.gravity.x = (event.clientX/document.body.offsetWidth-0.5)*gravityModifier;
-        var gravityVectorLength = 
-          Math.sqrt(
-            engine.world.gravity.y*engine.world.gravity.y+engine.world.gravity.x*engine.world.gravity.x);
-
-        document.getElementsByTagName("canvas")[0].style.transform = 
-            "rotate3d("+engine.world.gravity.y*(-1)+","+engine.world.gravity.x+",0,"+gravityVectorLength*12+"deg)";
-        
-        /*document.getElementsByTagName("canvas")[0].style["-webkit-perspective-origin"] = 
-            engine.world.gravity.x*100+"% "+" "+engine.world.gravity.y*100+"%";*/
-
-
+    var canvasDimensions = {
+            height: 500,
+            width: 300
         }
 
 
-        document.body.addEventListener("mousemove", mouseListener);
+    var borderThickness = 60;
+    function randomValidLocation(){
+      return {
+        x:borderThickness+Math.random()*(canvasDimensions.width-borderThickness*2),
+        y:borderThickness+Math.random()*(canvasDimensions.height-borderThickness*2)
+      }
+    }
 
-        var canvasDimensions = {
-              height: 500,
-              width: 300
-        }
-              // module aliases
-        var Engine = Matter.Engine,
-            Render = Matter.Render,
-            World = Matter.World,
-            Bodies = Matter.Bodies;
+    function convertToSafeLocation(initialLocation){
+      return {
+        x: Math.max(borderThickness,Math.min(initialLocation.x,canvasDimensions.width-borderThickness)),
+        y: Math.max(borderThickness,Math.min(initialLocation.y,canvasDimensions.height-borderThickness))
+      }
+    }
 
-        // create an engine
-        var engine = Engine.create();
+    var Engine = Matter.Engine,
+        Render = Matter.Render,
+        World = Matter.World,
+        Bodies = Matter.Bodies;
 
-        // create a renderer
-        var render = Render.create({
-            element: document.getElementsByClassName("canvasContainer")[0],
-            engine: engine,
-            options: {
+
+    var engine;
+    var playerTriangles;
+    var won;
+    var enemyPolygon;
+    var render;
+
+    function startLevelAnew(random){
+
+      won = 0;
+
+      if(document.getElementsByTagName('canvas').length>0){
+        canvasContainer.removeChild(document.getElementsByTagName('canvas')[0]);
+      }
+
+      if(engine){
+        Matter.World.clear(engine.world, false)  
+        Engine.clear(engine);
+        hideMessage();
+      }
+      
+      // create an engine
+      engine = Engine.create();
+
+
+      // create a renderer
+      render = Render.create({
+          element: document.getElementsByClassName("canvasContainer")[0],
+          engine: engine,
+          options: {
               height: canvasDimensions.height,
-              width: canvasDimensions.width
-            }
-        });
+              width: canvasDimensions.width,
+              wireframes: false
+          }
+      });
 
-        function getTestTriangle(){
-          return Bodies.polygon(Math.random()*150, Math.random()*150, 3, 5);
-        }
-        // create two boxes and a ground
-        var boxA = Bodies.polygon(120, 80, 3, 50);
-        var boxB = Bodies.rectangle(30, 50, 80, 80);
-        var ground = Bodies.rectangle(0, canvasDimensions.height, canvasDimensions.width*2, 60, { isStatic: true });
-
-        var borders = [];
-        var borderThickness = 60;
-
-        for (var x = 0; x < 2; x++) {
+      var borders = [];
+      for (var x = 0; x < 2; x++) {
           for (var y = 0; y < 2; y++) {
 
-            var dimensions = {
-              x: ((x-y)/2+0.5)*canvasDimensions.width, 
-              y: (x+y)/2*canvasDimensions.height,
-              width: (x-y)?borderThickness:canvasDimensions.width, 
-              height: (x-y)?canvasDimensions.height:borderThickness, 
-            }
-            borders.push(
-              Bodies.rectangle(
-              dimensions.x,
-              dimensions.y,
-              dimensions.width,
-              dimensions.height,
-                { isStatic: true }
+              var dimensions = {
+                  x: ((x - y) / 2 + 0.5) * canvasDimensions.width,
+                  y: (x + y) / 2 * canvasDimensions.height,
+                  width: (x - y) ? borderThickness : canvasDimensions.width,
+                  height: (x - y) ? canvasDimensions.height : borderThickness,
+              }
+              borders.push(
+                  Bodies.rectangle(
+                      dimensions.x,
+                      dimensions.y,
+                      dimensions.width,
+                      dimensions.height, {
+                          isStatic: true
+                      }
+                  )
+
               )
-
-            )
           };
+      };
+      World.add(engine.world, borders);
+
+
+      //
+
+      var enemyPolygonCoordinates = {
+        x: canvasDimensions.width * .5,
+        y: canvasDimensions.height - 130
+      }
+
+      if(random){
+        enemyPolygonCoordinates = randomValidLocation();
+      }
+
+      enemyPolygon = Bodies.polygon(
+          enemyPolygonCoordinates.x,
+          enemyPolygonCoordinates.y,
+          3,
+          30, 
+          {
+              isStatic: true,
+              render: {
+                  strokeStyle: Matter.Common.shadeColor(redColor, -20),
+                  fillStyle: redColor
+              }
+          }
+      );
+      World.add(engine.world, enemyPolygon);
+
+      var enemy = {
+          matterJSObject: enemyPolygon,
+          initialHP: 50,
+          hp: undefined
+      }
+      enemy.hp = enemy.initialHP;
+
+      var triangleCount = 9;
+      playerTriangles = [];
+      var spawnPoint = {x:0,y:0};
+      if(random){
+        spawnPoint = randomValidLocation();
+      }
+      for (var i = 0; i < triangleCount; i++) {
+          var newTriangle = getTestTriangle(spawnPoint);
+          playerTriangles.push(newTriangle)
+          World.add(engine.world, newTriangle);
+      };
+
+
+      var deadlyObstacles = [];
+
+
+      var deadlyObstaclesDimensions = [{
+        x: 200,
+        y: 200,
+        width: 10,
+        height: 130
+      },{
+        x: 150,
+        y: 450,
+        width: 130,
+        height: 10
+      }]
+
+      if(random){
+        for (var i = 0; i < deadlyObstaclesDimensions.length; i++) {
+
+          deadlyObstaclesDimensions[i] = randomValidLocation();
+
+          if(Math.random()>0.5){
+            deadlyObstaclesDimensions[i].width = 10;
+            deadlyObstaclesDimensions[i].height = 130;
+          } else {
+            deadlyObstaclesDimensions[i].width = 130;
+            deadlyObstaclesDimensions[i].height = 10;
+          }
         };
-        
 
-        // add all of the bodies to the world
-        for (var i = 0; i < 9; i++) { 
-          World.add(engine.world, getTestTriangle());
-        };
-        World.add(engine.world, borders);
+      }
 
-        // run the engine
-        Engine.run(engine);
+      deadlyObstacles.push(
+          getDeadlyObstacle(
+              Bodies.rectangle(
+                  deadlyObstaclesDimensions[0].x,
+                  deadlyObstaclesDimensions[0].y,
+                  deadlyObstaclesDimensions[0].width,
+                  deadlyObstaclesDimensions[0].height, {
+                      isStatic: true
+                  }
+              )
+          )
+      );
+      deadlyObstacles.push(
+          getDeadlyObstacle(
+              Bodies.rectangle(
+                  deadlyObstaclesDimensions[1].x,
+                  deadlyObstaclesDimensions[1].y,
+                  deadlyObstaclesDimensions[1].width,
+                  deadlyObstaclesDimensions[1].height, {
+                      isStatic: true
+                  }
+              )
+          )
+      );
+       for (var i = 0; i < deadlyObstacles.length; i++) {
+          World.add(engine.world, deadlyObstacles[i]);
+      };
 
-        // run the renderer
-        Render.run(render);
+      //
 
-    </script> 
-  </body>
+      Matter.Events.on(engine, 'collisionStart', function(event) {
+        var pairs = event.pairs;
+
+        for (var i = 0; i < pairs.length; i++) {
+            var pair = pairs[i];
+            if (pair.bodyA == enemyPolygon || pair.bodyB == enemyPolygon) {
+                applyDamage(enemy, pair.collision.depth);
+            }
+            for (var j = 0; j < deadlyObstacles.length; j++) {
+                doOpOnComplement(
+                    function(x) {
+                        return x == deadlyObstacles[j]
+                    },
+                    killPlayerTriangle,
+                    pair.bodyA,
+                    pair.bodyB
+                );
+            };
+
+        }
+      });
+
+      Engine.run(engine);
+      Render.run(render);
+
+    }
+
+    startLevelAnew();
+
+    function newSampleLevel(){
+      startLevelAnew();
+    }
+
+    function handleOrientation(event) {
+
+        engine.world.gravity.x = event.gamma / 180 * gravityModifier;
+        engine.world.gravity.y = event.beta / 180 * gravityModifier;
+
+        pseudoConsole.innerHTML = event.gamma + " " + event.beta;
+    }
+
+    function mouseListener(event) {
+        engine.world.gravity.y = (event.clientY / document.body.offsetHeight - 0.5) * gravityModifier;
+        engine.world.gravity.x = (event.clientX / document.body.offsetWidth - 0.5) * gravityModifier;
+        var gravityVectorLength =
+            Math.sqrt(
+                engine.world.gravity.y * engine.world.gravity.y + engine.world.gravity.x * engine.world.gravity.x);
+
+        document.getElementsByTagName("canvas")[0].style.transform =
+            "rotate3d(" + engine.world.gravity.y * (-1) + "," + engine.world.gravity.x + ",0," + gravityVectorLength * 12 + "deg)";
+
+    }
+
+    function getTestTriangle(spawnPoint) {
+        if(!spawnPoint){
+          spawnPoint = {x:0,y:0}
+        }
+
+        var randomizedPersonalPosition = {
+          x: Math.random() * 150+spawnPoint.x,
+          y: Math.random() * 150+spawnPoint.y
+        }
+
+        randomizedPersonalPosition = convertToSafeLocation(randomizedPersonalPosition);
+
+        return Bodies.polygon(randomizedPersonalPosition.x, randomizedPersonalPosition.y, 3, 5, {
+            render: {
+                strokeStyle: Matter.Common.shadeColor(blueColor, -20),
+                fillStyle: blueColor
+            }
+        });
+    }
+
+    function getDeadlyObstacle(matterJSObject) {
+        matterJSObject.render.strokeStyle = Matter.Common.shadeColor(redColor, -20);
+        matterJSObject.render.fillStyle = redColor;
+        return matterJSObject;
+    }
+
+
+   
+    function applyDamage(enemyObject, collisionDepth) {
+        if (collisionDepth < 2) return;
+        enemyObject.hp = Math.max(enemyObject.hp - collisionDepth, 0);
+        if (!enemyObject.hp) {
+            World.remove(engine.world, enemyPolygon);
+            showMessage("You've won!");
+            won = 1;
+        } else {
+            enemyObject.matterJSObject.render.fillStyle = Matter.Common.shadeColor(redColor, (enemyObject.hp / enemyObject.initialHP - 1) * 70);
+        }
+    }
+
+
+    function showMessage(text) {
+        document.getElementsByClassName('message')[0].innerHTML = text;
+    }
+    function hideMessage(text) {
+        showMessage('');
+    }
+
+    function killPlayerTriangle(playerTriangle) {
+        World.remove(engine.world, playerTriangle);
+        var index = playerTriangles.indexOf(playerTriangle);
+        if (index > -1) {
+            playerTriangles.splice(index, 1);
+        }
+        if (playerTriangles.length == 0 && !won) {
+            showMessage("All triangles are lost,<br>the game ends.");
+        }
+    }
+
+    function doOpOnComplement(condition, op, objectA, objectB) {
+        if (condition(objectA)) {
+            op(objectB)
+        } else if (condition(objectB)) {
+            op(objectA)
+        }
+    }
+
+    </script>
+</body>
+
 </html>
