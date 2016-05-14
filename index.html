@@ -18,11 +18,15 @@
     
     .pseudoConsole {
         font-size: 20px;
-        display: inline-block;
+        display: none;
         width: 100px;
         position: absolute;
         right: 0%;
         top: 0px;
+    }
+
+    .dev .pseudoConsole {
+      display: inline-block;
     }
     
     .messageHolder {
@@ -78,7 +82,7 @@
 
 <body>
     <div class='pseudoConsole'></div>
-    <div class="canvasContainer"><div class="messageHolder"><div class='message'></div></div></div><div class='sidepane'>Hello, this is a game based on gravity. Move your mouse pointer inside the browser or tilt your mobile device to manipulate the world.<br/><br/>Just smash <span style='color:#4ECDC4'>your swarm</span> into huge <span style='color:#C44D58'>triangles</span> relentlessly and avoid <span style='color:#C44D58'>deadly rectangles</span>.<br/><br/><div class='button' onclick='newSampleLevel()'>New sample level</div><div class='button experimental' onclick='startLevelAnew(true)'>New random level</div></div>
+    <div class="canvasContainer"><div class="messageHolder"><div class='message'></div></div></div><div class='sidepane'>Hello, this is a game based on gravity. Move your mouse pointer inside the browser or tilt your mobile device to manipulate the world.<br/><br/>Just smash <span style='color:#4ECDC4'>your swarm</span> into huge <span style='color:#C44D58'>triangles</span> relentlessly and avoid <span style='color:#C44D58'>deadly rectangles</span>.<br/><br/><div class='button' onclick='newSampleLevel()'>New sample level</div><div class='button experimental' onclick='startLevelAnew(true)'>Brand-new level</div></div>
     <script src="matter.min.js"></script>
     <script type="text/javascript">
 
@@ -98,6 +102,9 @@
             width: 300
         }
 
+    if(window.location.pathname.indexOf('dev=true')){
+
+    }
 
     var borderThickness = 60;
     function randomValidLocation(){
