@@ -102,8 +102,8 @@
             width: 300
         }
 
-    if(window.location.pathname.indexOf('dev=true')){
-
+    if(window.location.pathname.indexOf('dev=true')>-1){
+        document.body.className +="dev";
     }
 
     var borderThickness = 60;
